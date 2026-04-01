@@ -1,0 +1,26 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Generated config (user-specific)
+atlas_nano.yaml
+
+# Pipeline outputs
+gates/
+gates_*/
+atlas_output/
+cached_scores*.json
+calibration_result*.json
+vecp_v2_results*
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
