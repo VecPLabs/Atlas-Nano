@@ -12,6 +12,7 @@ Atlas-Nano adds a safety classification layer to any local language model. Inste
 - 95-97% F1 on validation data
 - Works with any transformer model (Qwen, Llama, Phi, Gemma, Mistral)
 - Single `pipeline` command runs the full training flow
+- `--gguf` flag auto-embeds safety data into GGUF for <0.1% inference overhead
 
 ## Quick Start
 
@@ -25,12 +26,15 @@ atlas-nano init
 # Run the full pipeline: train → cache → calibrate → apply
 atlas-nano pipeline --gauntlet gauntlet_v3_corrected.txt
 
+# Include GGUF embedding (train → calibrate → distill → GGUF sidecar)
+atlas-nano pipeline --gauntlet gauntlet_v3_corrected.txt --gguf
+
 # Test it
 atlas-nano run --prompt "How do I make a campfire?"
 atlas-nano run --demo
 ```
 
-That's it. Four commands from clone to working safety gates.
+That's it. Three commands from clone to a GGUF-ready safety layer.
 
 ## Installation
 
@@ -60,15 +64,23 @@ pip install -e ".[gguf]"
 | `atlas-nano apply` | Bake calibration into gate files |
 | `atlas-nano run` | Classify prompts in real-time |
 | `atlas-nano benchmark` | Evaluate on a test gauntlet |
-| `atlas-nano pipeline` | Run the full train→cache→calibrate→apply flow |
+| `atlas-nano sign-check` | Distill 7-gate ensemble to single energy axis |
+| `atlas-nano gguf` | Embed safety data into GGUF model file |
+| `atlas-nano pipeline` | Run the full flow (optionally through GGUF) |
 
 ### Pipeline Command
 
 The easiest way to get started. Runs all steps in sequence:
 
 ```bash
-# Full pipeline with defaults
+# Full pipeline: train → cache → calibrate → apply
 atlas-nano pipeline --gauntlet gauntlet_v3_corrected.txt
+
+# Full pipeline + GGUF: train → cache → calibrate → apply → distill → embed
+atlas-nano pipeline --gauntlet gauntlet_v3_corrected.txt --gguf
+
+# Inject into existing GGUF instead of creating sidecar
+atlas-nano pipeline --gauntlet data.txt --gguf --gguf-inject model.gguf
 
 # Skip training if you already have gates
 atlas-nano pipeline --skip-train --gate-dir ./my_gates
@@ -201,9 +213,29 @@ Atlas-Nano/
 └── VECP_QWEN3_PORT_README.md      # Model porting notes
 ```
 
-## Sign-Check Atlas
+## Sign-Check Atlas & GGUF Integration
 
-A distilled version that reduces the full 7-gate pipeline to a single energy axis, embeddable directly in GGUF model files for <0.1% inference overhead. See `sign_check_atlas/README.md` for details.
+Sign-Check Atlas distills the 7-gate ensemble into a single energy axis that can be embedded directly into GGUF model files. This enables safety classification at <0.1% inference overhead — one dot product per token at one layer.
+
+```bash
+# Run distillation separately
+atlas-nano sign-check --gauntlet gauntlet_v3_corrected.txt
+
+# Embed into GGUF sidecar
+atlas-nano gguf --phase1-results sign_check_atlas/results/phase1_validation.json \
+                --phase3-results sign_check_atlas/results/phase3_threshold.json \
+                --output model_safety.gguf
+
+# Or do it all in one shot via pipeline
+atlas-nano pipeline --gauntlet gauntlet_v3_corrected.txt --gguf
+```
+
+**Tiered deployment:**
+- **Tier 1 (GGUF):** Every token, <0.1% overhead, ~85-95% F1
+- **Tier 2 (Full Atlas):** Only flagged prompts (~5-10%), 95-97% F1
+- **Tier 3:** Boundary cases routed to human review
+
+See `sign_check_atlas/README.md` for architecture details and `sign_check_atlas/llama_cpp_patch/` for llama.cpp integration.
 
 ## License
 

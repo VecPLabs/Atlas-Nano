@@ -10,7 +10,9 @@ Usage:
     atlas-nano run --prompt "..."        # Classify a single prompt
     atlas-nano run --demo                # Run demo suite
     atlas-nano benchmark [options]       # Evaluate on test gauntlet
-    atlas-nano pipeline [options]        # Run full train→cache→calibrate→apply flow
+    atlas-nano sign-check [options]      # Distill gates to single energy axis
+    atlas-nano gguf [options]            # Embed safety data into GGUF
+    atlas-nano pipeline [options]        # Full flow: train→calibrate→GGUF
 """
 
 import argparse
@@ -29,6 +31,7 @@ Examples:
   atlas-nano init                           Create default config file
   atlas-nano train --gauntlet data.txt      Train safety gates
   atlas-nano pipeline                       Run full pipeline with config
+  atlas-nano pipeline --gguf                Include GGUF embedding in pipeline
   atlas-nano run --prompt "Hello world"     Classify a prompt
   atlas-nano benchmark                      Evaluate on test set
 
@@ -123,13 +126,45 @@ set defaults. CLI flags override config file values.
     sub.add_argument("--obf-gate", help="OBF gate file")
     sub.add_argument("--uniform-threshold", type=float)
 
+    # ---- sign-check ----
+    sub = subparsers.add_parser("sign-check",
+        help="Distill 7-gate ensemble to single energy axis (Sign-Check Atlas)")
+    sub.add_argument("--gauntlet", help="Gauntlet file for validation")
+    sub.add_argument("--output-dir", help="Output directory for results")
+    sub.add_argument("--component", choices=["residual", "mlp.down_proj", "self_attn.o_proj"])
+    sub.add_argument("--layers", type=int, nargs="+", help="Layer indices to evaluate")
+    sub.add_argument("--sweep-components", action="store_true",
+                     help="Sweep all components (slower but comprehensive)")
+    sub.add_argument("--threshold-mode", choices=["sweep", "pr_curve", "balanced"])
+    sub.add_argument("--min-recall", type=float)
+    sub.add_argument("--max-fp-rate", type=float)
+    sub.add_argument("--skip-categories", action="store_true",
+                     help="Skip per-category analysis (Phase 2)")
+    sub.add_argument("--skip-threshold", action="store_true",
+                     help="Skip threshold optimization (Phase 3)")
+
+    # ---- gguf ----
+    sub = subparsers.add_parser("gguf", help="Embed safety data into GGUF model file")
+    sub.add_argument("--output", "-o", help="Output GGUF path")
+    sub.add_argument("--mode", choices=["sidecar", "inject"], help="sidecar (standalone) or inject (into existing)")
+    sub.add_argument("--input", help="Input GGUF file (required for inject mode)")
+    sub.add_argument("--energy-axis", help="Path to energy_axis.npy")
+    sub.add_argument("--phase1-results", help="Path to phase1_validation.json")
+    sub.add_argument("--phase3-results", help="Path to phase3_threshold.json")
+    sub.add_argument("--extraction-layer", type=int)
+    sub.add_argument("--threshold", type=float)
+
     # ---- pipeline ----
-    sub = subparsers.add_parser("pipeline", help="Run full train -> cache -> calibrate -> apply flow")
+    sub = subparsers.add_parser("pipeline", help="Run full train -> cache -> calibrate -> apply -> GGUF flow")
     sub.add_argument("--gauntlet", help="Training gauntlet file")
     sub.add_argument("--skip-train", action="store_true", help="Skip training (use existing gates)")
     sub.add_argument("--skip-cache", action="store_true", help="Skip caching (use existing scores)")
     sub.add_argument("--skip-calibrate", action="store_true", help="Skip calibration")
     sub.add_argument("--skip-apply", action="store_true", help="Skip applying calibration")
+    sub.add_argument("--gguf", action="store_true",
+                     help="Also run Sign-Check Atlas distillation and GGUF embedding")
+    sub.add_argument("--gguf-output", help="GGUF output path (default: <output-dir>/model_safety.gguf)")
+    sub.add_argument("--gguf-inject", help="Inject into existing GGUF file instead of sidecar")
     sub.add_argument("--gate-dir", help="Gate directory (if skipping train)")
     sub.add_argument("--output-dir", help="Base output directory")
 
@@ -164,6 +199,10 @@ set defaults. CLI flags override config file values.
         _cmd_run(args, cfg)
     elif args.command == "benchmark":
         _cmd_benchmark(args, cfg)
+    elif args.command == "sign-check":
+        _cmd_sign_check(args, cfg)
+    elif args.command == "gguf":
+        _cmd_gguf(args, cfg)
     elif args.command == "pipeline":
         _cmd_pipeline(args, cfg)
 
@@ -285,17 +324,56 @@ def _cmd_benchmark(args, cfg):
     _run_benchmark(cfg)
 
 
+def _cmd_sign_check(args, cfg):
+    """Run Sign-Check Atlas: distill 7-gate ensemble to single energy axis."""
+    _apply_overrides(args, cfg.sign_check, {
+        "gauntlet": "gauntlet",
+        "output_dir": "output_dir",
+        "component": "component",
+        "threshold_mode": "threshold_mode",
+        "min_recall": "min_recall",
+        "max_fp_rate": "max_fp_rate",
+    })
+    layers = getattr(args, "layers", None)
+    sweep = getattr(args, "sweep_components", False)
+    skip_cat = getattr(args, "skip_categories", False)
+    skip_thresh = getattr(args, "skip_threshold", False)
+
+    _banner("Sign-Check Atlas Distillation")
+    _run_sign_check(cfg, layers=layers, sweep_components=sweep,
+                    skip_categories=skip_cat, skip_threshold=skip_thresh)
+
+
+def _cmd_gguf(args, cfg):
+    """Embed safety data into GGUF."""
+    _apply_overrides(args, cfg.gguf, {
+        "output": "output",
+        "mode": "mode",
+        "input": "input_gguf",
+        "energy_axis": "energy_axis",
+        "phase1_results": "phase1_results",
+        "phase3_results": "phase3_results",
+    })
+    extraction_layer = getattr(args, "extraction_layer", None)
+    threshold = getattr(args, "threshold", None)
+
+    _banner("GGUF Safety Embedding")
+    _run_gguf_embed(cfg, extraction_layer=extraction_layer, threshold=threshold)
+
+
 def _cmd_pipeline(args, cfg):
-    """Run the full train -> cache -> calibrate -> apply pipeline."""
-    if args.gauntlet:
-        cfg.train.gauntlet = args.gauntlet
-        cfg.cache.gauntlet = args.gauntlet
+    """Run the full train -> cache -> calibrate -> apply (-> GGUF) pipeline."""
+    gauntlet = args.gauntlet or cfg.train.gauntlet
+    cfg.train.gauntlet = gauntlet
+    cfg.cache.gauntlet = gauntlet
+    cfg.sign_check.gauntlet = gauntlet
 
     output_dir = args.output_dir or "atlas_output"
     gate_dir = args.gate_dir or f"{output_dir}/gates"
     cached_path = f"{output_dir}/cached_scores.json"
     cal_path = f"{output_dir}/calibration_result.json"
     cal_gate_dir = f"{output_dir}/gates_calibrated"
+    sc_dir = f"{output_dir}/sign_check"
 
     cfg.train.output_dir = gate_dir
     cfg.cache.gate_dir = gate_dir
@@ -305,24 +383,54 @@ def _cmd_pipeline(args, cfg):
     cfg.apply.gate_dir = gate_dir
     cfg.apply.calibration = cal_path
     cfg.apply.output = cal_gate_dir
+    cfg.sign_check.output_dir = sc_dir
+
+    include_gguf = args.gguf
+    if include_gguf:
+        gguf_output = args.gguf_output or f"{output_dir}/model_safety.gguf"
+        cfg.gguf.output = gguf_output
+        cfg.gguf.phase1_results = f"{sc_dir}/phase1_validation.json"
+        cfg.gguf.phase3_results = f"{sc_dir}/phase3_threshold.json"
+        if args.gguf_inject:
+            cfg.gguf.mode = "inject"
+            cfg.gguf.input_gguf = args.gguf_inject
 
     Path(output_dir).mkdir(parents=True, exist_ok=True)
 
+    # Count total steps
+    base_steps = 4
+    gguf_steps = 2 if include_gguf else 0
+    total = base_steps + gguf_steps
+    # Adjust for skips
+    skipped = sum([args.skip_train, args.skip_cache, args.skip_calibrate, args.skip_apply])
+    total -= skipped
+
     steps = []
+    step_i = [0]
+
+    def _step(name, fn):
+        step_i[0] += 1
+        steps.append((f"{step_i[0]}/{total}", name, fn))
+
     if not args.skip_train:
-        steps.append(("1/4", "Training safety gates", lambda: _run_training(cfg)))
+        _step("Training safety gates", lambda: _run_training(cfg))
     if not args.skip_cache:
-        steps.append(("2/4", "Caching gate scores", lambda: _run_cache(cfg)))
+        _step("Caching gate scores", lambda: _run_cache(cfg))
     if not args.skip_calibrate:
-        steps.append(("3/4", "Calibrating thresholds", lambda: _run_calibrate(cfg)))
+        _step("Calibrating thresholds", lambda: _run_calibrate(cfg))
     if not args.skip_apply:
-        steps.append(("4/4", "Applying calibration", lambda: _run_apply(cfg)))
+        _step("Applying calibration", lambda: _run_apply(cfg))
+    if include_gguf:
+        _step("Sign-Check Atlas distillation",
+              lambda: _run_sign_check(cfg, skip_categories=False, skip_threshold=False))
+        _step("Embedding into GGUF", lambda: _run_gguf_embed(cfg))
 
     _banner("Atlas-Nano Full Pipeline")
     print(f"  Model:      {cfg.model.name}")
     print(f"  Device:     {cfg.model.device}")
-    print(f"  Gauntlet:   {cfg.train.gauntlet}")
+    print(f"  Gauntlet:   {gauntlet}")
     print(f"  Output:     {output_dir}/")
+    print(f"  GGUF:       {'yes' if include_gguf else 'no (use --gguf to enable)'}")
     print(f"  Steps:      {len(steps)}")
     print()
 
@@ -334,15 +442,22 @@ def _cmd_pipeline(args, cfg):
         elapsed = time.time() - step_t0
         print(f"  Done in {elapsed:.1f}s\n")
 
-    total = time.time() - t0
+    total_time = time.time() - t0
     print("=" * 60)
-    print(f"Pipeline complete in {total:.1f}s")
+    print(f"Pipeline complete in {total_time:.1f}s")
     print(f"Calibrated gates: {cal_gate_dir}/")
+    if include_gguf:
+        print(f"GGUF sidecar:     {cfg.gguf.output}")
     print()
     print("Next steps:")
     print(f"  atlas-nano run --gate-dir {cal_gate_dir} --prompt 'your prompt'")
     print(f"  atlas-nano run --gate-dir {cal_gate_dir} --demo")
     print(f"  atlas-nano benchmark --gate-dir {cal_gate_dir}")
+    if include_gguf:
+        print()
+        print("GGUF integration:")
+        print(f"  Sidecar file ready at: {cfg.gguf.output}")
+        print(f"  See sign_check_atlas/llama_cpp_patch/ for llama.cpp integration")
 
 
 # =============================================================================
@@ -487,6 +602,99 @@ def _run_benchmark(cfg):
     if hasattr(cfg.benchmark, "_uniform_threshold") and cfg.benchmark._uniform_threshold is not None:
         sys.argv += ["--uniform-threshold", str(cfg.benchmark._uniform_threshold)]
     bench_main()
+
+
+def _run_sign_check(cfg, layers=None, sweep_components=False,
+                     skip_categories=False, skip_threshold=False):
+    """Run Sign-Check Atlas: Phase 1 (validate) + Phase 2 (categories) + Phase 3 (threshold)."""
+    import sys
+    repo_root = str(Path(__file__).resolve().parent.parent)
+    sys.path.insert(0, repo_root)
+
+    output_dir = cfg.sign_check.output_dir
+    Path(output_dir).mkdir(parents=True, exist_ok=True)
+
+    # Phase 1: Hypothesis validation - compute energy axis
+    print("  Phase 1: Validating energy axis hypothesis...")
+    from sign_check_atlas.validate_hypothesis import main as validate_main
+    sys.argv = [
+        "validate_hypothesis",
+        "--model", cfg.model.name,
+        "--gauntlet", cfg.sign_check.gauntlet,
+        "--output-dir", output_dir,
+        "--device", cfg.model.device,
+        "--component", cfg.sign_check.component,
+        "--batch-size", str(cfg.model.batch_size),
+    ]
+    if layers:
+        sys.argv += ["--layers"] + [str(l) for l in layers]
+    if sweep_components:
+        sys.argv.append("--sweep-components")
+    validate_main()
+
+    # Phase 2: Per-category analysis
+    if not skip_categories:
+        print("  Phase 2: Per-category analysis...")
+        from sign_check_atlas.category_analysis import main as category_main
+        energy_axis_path = f"{output_dir}/energy_axis.npy"
+        sys.argv = [
+            "category_analysis",
+            "--model", cfg.model.name,
+            "--gauntlet", cfg.sign_check.gauntlet,
+            "--energy-axis", energy_axis_path,
+            "--output-dir", output_dir,
+            "--device", cfg.model.device,
+            "--component", cfg.sign_check.component,
+            "--batch-size", str(cfg.model.batch_size),
+        ]
+        if layers:
+            sys.argv += ["--layers"] + [str(l) for l in layers]
+        category_main()
+
+    # Phase 3: Threshold optimization
+    if not skip_threshold:
+        print("  Phase 3: Threshold optimization...")
+        from sign_check_atlas.threshold_search import main as threshold_main
+        sys.argv = [
+            "threshold_search",
+            "--harm-energies", f"{output_dir}/harm_energies.npy",
+            "--safe-energies", f"{output_dir}/safe_energies.npy",
+            "--mode", cfg.sign_check.threshold_mode,
+            "--optimize", cfg.sign_check.optimize_metric,
+            "--min-recall", str(cfg.sign_check.min_recall),
+            "--max-fp-rate", str(cfg.sign_check.max_fp_rate),
+            "--output-dir", output_dir,
+        ]
+        threshold_main()
+
+
+def _run_gguf_embed(cfg, extraction_layer=None, threshold=None):
+    """Run GGUF safety embedding (Phase 4)."""
+    import sys
+    repo_root = str(Path(__file__).resolve().parent.parent)
+    sys.path.insert(0, repo_root)
+
+    from sign_check_atlas.gguf_integration.embed_safety import main as embed_main
+
+    sys.argv = [
+        "embed_safety",
+        "--output", cfg.gguf.output,
+        "--mode", cfg.gguf.mode,
+        "--model-name", cfg.model.name,
+    ]
+    if cfg.gguf.phase1_results:
+        sys.argv += ["--phase1-results", cfg.gguf.phase1_results]
+    if cfg.gguf.phase3_results:
+        sys.argv += ["--phase3-results", cfg.gguf.phase3_results]
+    if cfg.gguf.energy_axis:
+        sys.argv += ["--energy-axis", cfg.gguf.energy_axis]
+    if cfg.gguf.input_gguf:
+        sys.argv += ["--input", cfg.gguf.input_gguf]
+    if extraction_layer is not None:
+        sys.argv += ["--extraction-layer", str(extraction_layer)]
+    if threshold is not None:
+        sys.argv += ["--threshold", str(threshold)]
+    embed_main()
 
 
 # =============================================================================

@@ -96,6 +96,31 @@ class BenchmarkConfig:
 
 
 @dataclass
+class SignCheckConfig:
+    """Sign-Check Atlas settings (single-axis distillation for GGUF)."""
+    gauntlet: str = "gauntlet_v3_corrected.txt"
+    output_dir: str = "sign_check_atlas/results"
+    component: str = "residual"
+    # Phase 3 threshold search
+    threshold_mode: str = "balanced"  # sweep, pr_curve, balanced
+    optimize_metric: str = "f1"  # f1, accuracy, precision, recall
+    min_recall: float = 0.85
+    max_fp_rate: float = 0.05
+
+
+@dataclass
+class GGUFConfig:
+    """GGUF embedding settings."""
+    output: str = "model_safety.gguf"
+    mode: str = "sidecar"  # sidecar or inject
+    input_gguf: Optional[str] = None  # required for inject mode
+    # Auto-populated from sign-check results if not set
+    energy_axis: Optional[str] = None
+    phase1_results: Optional[str] = None
+    phase3_results: Optional[str] = None
+
+
+@dataclass
 class PipelineConfig:
     """Full pipeline orchestration settings."""
     model: ModelConfig = field(default_factory=ModelConfig)
@@ -105,6 +130,8 @@ class PipelineConfig:
     apply: ApplyConfig = field(default_factory=ApplyConfig)
     run: RunConfig = field(default_factory=RunConfig)
     benchmark: BenchmarkConfig = field(default_factory=BenchmarkConfig)
+    sign_check: SignCheckConfig = field(default_factory=SignCheckConfig)
+    gguf: GGUFConfig = field(default_factory=GGUFConfig)
 
 
 # ---- Model architecture presets ----
