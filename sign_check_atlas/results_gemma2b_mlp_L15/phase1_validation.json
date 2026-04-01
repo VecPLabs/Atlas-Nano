@@ -1,0 +1,59 @@
+{
+  "timestamp": "2026-03-17T22:14:39.841605",
+  "model": "google/gemma-2-2b-it",
+  "gauntlet": "gauntlet_v3_corrected.txt",
+  "component": "mlp.down_proj",
+  "layers": [
+    15
+  ],
+  "axis_stats": {
+    "n_harmful": 761,
+    "n_benign": 419,
+    "centroid_distance": 0.09277713298797607,
+    "centroid_cosine_similarity": 0.9912827610969543,
+    "axis_dim": 2304,
+    "layers_used": [
+      15
+    ]
+  },
+  "sign_check_metrics": {
+    "threshold": 0.0,
+    "tp": 712,
+    "fp": 207,
+    "tn": 212,
+    "fn": 49,
+    "precision": 0.7747551686615887,
+    "recall": 0.9356110381077529,
+    "f1": 0.8476190476190475,
+    "accuracy": 0.7830508474576271,
+    "fp_rate": 0.49403341288782815,
+    "safe_negative_pct": 0.5059665871121718,
+    "harm_positive_pct": 0.9356110381077529,
+    "harm_energy_mean": 0.09395106025187007,
+    "harm_energy_std": 0.0798734200561303,
+    "harm_energy_min": -0.3343464732170105,
+    "harm_energy_max": 0.2862016558647156,
+    "safe_energy_mean": 0.0011739204448774493,
+    "safe_energy_std": 0.09182546226374909,
+    "safe_energy_min": -0.3343624770641327,
+    "safe_energy_max": 0.18662627041339874,
+    "separation": 0.09277713980699262
+  },
+  "per_layer_results": [
+    {
+      "layer": 15,
+      "f1": 0.8476190476190475,
+      "precision": 0.7747551686615887,
+      "recall": 0.9356110381077529,
+      "accuracy": 0.7830508474576271,
+      "fp_rate": 0.49403341288782815,
+      "separation": 0.09277713980699262,
+      "centroid_distance": 0.09277713298797607,
+      "safe_negative_pct": 0.5059665871121718,
+      "harm_positive_pct": 0.9356110381077529
+    }
+  ],
+  "verdict": "VIABLE - Usable as Tier 1 filter with full Atlas as Tier 2",
+  "hidden_dim": 2304,
+  "n_layers": 26
+}

@@ -1,0 +1,59 @@
+{
+  "timestamp": "2026-03-18T17:24:44.032189",
+  "model": "meta-llama/Llama-3.1-8B-Instruct",
+  "gauntlet": "gauntlet_v3_corrected.txt",
+  "component": "self_attn.o_proj",
+  "layers": [
+    22
+  ],
+  "axis_stats": {
+    "n_harmful": 761,
+    "n_benign": 419,
+    "centroid_distance": 0.22399404644966125,
+    "centroid_cosine_similarity": 0.8967423439025879,
+    "axis_dim": 4096,
+    "layers_used": [
+      22
+    ]
+  },
+  "sign_check_metrics": {
+    "threshold": 0.0,
+    "tp": 698,
+    "fp": 137,
+    "tn": 282,
+    "fn": 63,
+    "precision": 0.8359281437125748,
+    "recall": 0.9172141918528253,
+    "f1": 0.87468671679198,
+    "accuracy": 0.8305084745762712,
+    "fp_rate": 0.3269689737470167,
+    "safe_negative_pct": 0.6730310262529833,
+    "harm_positive_pct": 0.9172141918528253,
+    "harm_energy_mean": 0.16001886799233953,
+    "harm_energy_std": 0.11342562922921691,
+    "harm_energy_min": -0.31736600399017334,
+    "harm_energy_max": 0.4208802282810211,
+    "safe_energy_mean": -0.0639751988078572,
+    "safe_energy_std": 0.12102931632079086,
+    "safe_energy_min": -0.35984447598457336,
+    "safe_energy_max": 0.2441679835319519,
+    "separation": 0.22399406680019673
+  },
+  "per_layer_results": [
+    {
+      "layer": 22,
+      "f1": 0.87468671679198,
+      "precision": 0.8359281437125748,
+      "recall": 0.9172141918528253,
+      "accuracy": 0.8305084745762712,
+      "fp_rate": 0.3269689737470167,
+      "separation": 0.22399406680019673,
+      "centroid_distance": 0.22399404644966125,
+      "safe_negative_pct": 0.6730310262529833,
+      "harm_positive_pct": 0.9172141918528253
+    }
+  ],
+  "verdict": "STRONG - Proceed to Phase 2 (category analysis)",
+  "hidden_dim": 4096,
+  "n_layers": 32
+}

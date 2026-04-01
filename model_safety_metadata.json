@@ -1,0 +1,17 @@
+{
+  "safety.version": 1,
+  "safety.type": "sign_check_atlas",
+  "safety.extraction_layer": 22,
+  "safety.extraction_component": "residual",
+  "safety.threshold": -0.03469539650041742,
+  "safety.hidden_dim": 2560,
+  "safety.calibration_f1": 0.8952116585704372,
+  "safety.calibration_precision": 0.9485294117647058,
+  "safety.calibration_recall": 0.8475689881734559,
+  "safety.model_name": "Qwen/Qwen3-4B",
+  "safety.calibration_date": "2026-03-13T19:22:03.765831",
+  "safety.energy_axis_shape": [
+    2560
+  ],
+  "safety.energy_axis_norm": 1.0
+}

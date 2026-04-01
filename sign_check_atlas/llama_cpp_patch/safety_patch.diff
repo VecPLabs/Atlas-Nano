@@ -1,0 +1,125 @@
+diff --git a/include/llama.h b/include/llama.h
+--- a/include/llama.h
++++ b/include/llama.h
+@@ -XXX,6 +XXX,20 @@
+     // ... existing struct members ...
+
++    // Sign-Check Atlas: Safety classification
++    // Patent Pending: USPTO 63/931,565
++    struct {
++        bool     enabled;
++        uint32_t extraction_layer;
++        uint32_t hidden_dim;
++        float    threshold;
++        float  * energy_axis;       // [hidden_dim] - loaded from GGUF tensor
++        float    calibration_f1;
++    } safety;
++
+     // ... rest of struct ...
+ };
+
+diff --git a/src/llama-model-loader.cpp b/src/llama-model-loader.cpp
+--- a/src/llama-model-loader.cpp
++++ b/src/llama-model-loader.cpp
+@@ -XXX,6 +XXX,38 @@
+     // ... after loading standard model metadata ...
+
++    // === SIGN-CHECK ATLAS: Load safety metadata from GGUF ===
++    {
++        const int idx_version = gguf_find_key(ctx_gguf, "safety.version");
++        if (idx_version >= 0) {
++            model.safety.enabled = true;
++
++            model.safety.extraction_layer = gguf_get_val_u32(ctx_gguf,
++                gguf_find_key(ctx_gguf, "safety.extraction_layer"));
++            model.safety.hidden_dim = gguf_get_val_u32(ctx_gguf,
++                gguf_find_key(ctx_gguf, "safety.hidden_dim"));
++            model.safety.threshold = gguf_get_val_f32(ctx_gguf,
++                gguf_find_key(ctx_gguf, "safety.threshold"));
++
++            const int idx_f1 = gguf_find_key(ctx_gguf, "safety.calibration_f1");
++            if (idx_f1 >= 0) {
++                model.safety.calibration_f1 = gguf_get_val_f32(ctx_gguf, idx_f1);
++            }
++
++            // Load energy axis tensor
++            const int tensor_idx = ggml_get_tensor_idx(ctx_data, "safety.energy_axis");
++            if (tensor_idx >= 0) {
++                struct ggml_tensor * axis = ggml_get_tensor(ctx_data, tensor_idx);
++                model.safety.energy_axis = (float *)axis->data;
++                LLAMA_LOG_INFO("%s: loaded safety energy axis: layer=%u dim=%u threshold=%.4f f1=%.3f\n",
++                    __func__,
++                    model.safety.extraction_layer,
++                    model.safety.hidden_dim,
++                    model.safety.threshold,
++                    model.safety.calibration_f1);
++            } else {
++                LLAMA_LOG_WARN("%s: safety metadata found but energy_axis tensor missing\n", __func__);
++                model.safety.enabled = false;
++            }
++        }
++    }
++
+     // ... continue with existing loading ...
+
+diff --git a/src/llama-decode.cpp b/src/llama-decode.cpp
+--- a/src/llama-decode.cpp
++++ b/src/llama-decode.cpp
+@@ -XXX,6 +XXX,42 @@
+     // ... inside the layer loop in llama_decode_internal ...
+
+     for (uint32_t il = 0; il < n_layer; il++) {
+         // ... existing layer processing ...
+
++        // === SIGN-CHECK ATLAS: Safety check at extraction layer ===
++        if (model.safety.enabled && il == model.safety.extraction_layer) {
++            // Extract last-token activation from residual stream
++            // This happens AFTER the layer's forward pass completes
++            const int last_token_idx = n_tokens - 1;
++            const float * activation = (const float *)ggml_get_data(cur)
++                + last_token_idx * model.safety.hidden_dim;
++
++            // Compute energy: dot(activation, energy_axis)
++            float energy = 0.0f;
++            const float * axis = model.safety.energy_axis;
++            const uint32_t dim = model.safety.hidden_dim;
++
++            // Vectorizable dot product
++            for (uint32_t d = 0; d < dim; d++) {
++                energy += activation[d] * axis[d];
++            }
++
++            // Check threshold
++            if (energy > model.safety.threshold) {
++                // Flag this batch as potentially harmful
++                // The safety_flag can be checked by the caller
++                batch_result.safety_flagged = true;
++                batch_result.safety_energy  = energy;
++
++                LLAMA_LOG_DEBUG("%s: safety flag at layer %u: energy=%.4f threshold=%.4f\n",
++                    __func__, il, energy, model.safety.threshold);
++            }
++        }
++
+         // ... continue with next layer ...
+     }
+
+diff --git a/include/llama.h b/include/llama.h
+--- a/include/llama.h
++++ b/include/llama.h
+@@ -XXX,6 +XXX,15 @@
+ struct llama_batch_result {
+     // ... existing fields ...
+
++    // Sign-Check Atlas safety result
++    bool  safety_flagged;    // true if any token flagged
++    float safety_energy;     // energy value at extraction layer
++
+     // ... rest of struct ...
+ };
+
++// Query safety status of most recent decode
++LLAMA_API bool  llama_safety_enabled (const struct llama_context * ctx);
++LLAMA_API bool  llama_safety_flagged (const struct llama_context * ctx);
++LLAMA_API float llama_safety_energy  (const struct llama_context * ctx);
++
