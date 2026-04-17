@@ -20,6 +20,8 @@ import sys
 import time
 from pathlib import Path
 
+from atlas_nano import __version__
+
 
 def main():
     parser = argparse.ArgumentParser(
@@ -41,6 +43,11 @@ set defaults. CLI flags override config file values.
     )
 
     parser.add_argument(
+        "--version", "-V",
+        action="version",
+        version=f"atlas-nano {__version__}",
+    )
+    parser.add_argument(
         "--config", "-c",
         help="Path to YAML config file (default: atlas_nano.yaml)",
     )
@@ -58,6 +65,8 @@ set defaults. CLI flags override config file values.
     # ---- init ----
     sub = subparsers.add_parser("init", help="Generate default config file")
     sub.add_argument("--output", "-o", default="atlas_nano.yaml")
+    sub.add_argument("--force", "-f", action="store_true",
+                     help="Overwrite existing config file")
 
     # ---- train ----
     sub = subparsers.add_parser("train", help="Train safety gates")
@@ -172,7 +181,7 @@ set defaults. CLI flags override config file values.
 
     if args.command is None:
         parser.print_help()
-        sys.exit(1)
+        sys.exit(0)
 
     # Load config
     from atlas_nano.config import load_config
@@ -213,6 +222,9 @@ set defaults. CLI flags override config file values.
 
 def _cmd_init(args):
     from atlas_nano.config import save_default_config
+    if Path(args.output).exists() and not args.force:
+        _abort(f"{args.output} already exists.",
+               "pass --force to overwrite, or use --output <other-path>")
     path = save_default_config(args.output)
     print(f"Created config file: {path}")
     print("Edit this file to customize your pipeline, then run:")
@@ -233,6 +245,10 @@ def _cmd_train(args, cfg):
     if args.layer_end is not None:
         cfg.model.layer_end = args.layer_end
 
+    if not cfg.train.generate_data_only:
+        _require_file(cfg.train.gauntlet, "gauntlet file",
+                      "pass --gauntlet <path> or set train.gauntlet in atlas_nano.yaml")
+
     _banner("Training Safety Gates")
     _run_training(cfg)
 
@@ -244,6 +260,11 @@ def _cmd_cache(args, cfg):
         "output": "output",
         "obf_gate": "obf_gate",
     })
+
+    _require_dir(cfg.cache.gate_dir, "gate directory",
+                 "pass --gate-dir <dir> pointing to trained gates (run 'atlas-nano train' first)")
+    _require_file(cfg.cache.gauntlet, "gauntlet file",
+                  "pass --gauntlet <path> or set cache.gauntlet in atlas_nano.yaml")
 
     _banner("Caching Gate Scores")
     _run_cache(cfg)
@@ -272,6 +293,9 @@ def _cmd_calibrate(args, cfg):
     if args.optimize_block_assist is not None:
         cfg.calibrate.optimize_block_assist = args.optimize_block_assist
 
+    _require_file(cfg.calibrate.cached, "cached scores file",
+                  "pass --cached <path> (run 'atlas-nano cache' first)")
+
     _banner("Calibrating Thresholds (CMA-ES)")
     _run_calibrate(cfg)
 
@@ -283,6 +307,11 @@ def _cmd_apply(args, cfg):
         "output": "output",
         "obf_gate": "obf_gate",
     })
+
+    _require_dir(cfg.apply.gate_dir, "gate directory",
+                 "pass --gate-dir <dir> with the original (uncalibrated) gates")
+    _require_file(cfg.apply.calibration, "calibration result file",
+                  "pass --calibration <path> (run 'atlas-nano calibrate' first)")
 
     _banner("Applying Calibration")
     _run_apply(cfg)
@@ -297,6 +326,12 @@ def _cmd_run(args, cfg):
         "event_horizon": "event_horizon",
         "benign_matrix": "benign_matrix",
     })
+
+    if not args.prompt and not args.demo:
+        _abort("'run' needs either --prompt \"...\" or --demo.",
+               "examples: atlas-nano run --prompt 'hello world'  |  atlas-nano run --demo")
+    _require_dir(cfg.run.gate_dir, "calibrated gate directory",
+                 "pass --gate-dir <dir> (run 'atlas-nano apply' first)")
 
     _banner("Live Safety Inference")
     _run_inference(cfg, prompt=args.prompt, demo=args.demo)
@@ -320,6 +355,11 @@ def _cmd_benchmark(args, cfg):
         # Pass through to benchmark runner
         cfg.benchmark._uniform_threshold = args.uniform_threshold
 
+    _require_dir(cfg.benchmark.gate_dir, "gate directory",
+                 "pass --gate-dir <dir> with calibrated gates")
+    _require_file(cfg.benchmark.gauntlet, "test gauntlet file",
+                  "pass --gauntlet <path> or set benchmark.gauntlet in atlas_nano.yaml")
+
     _banner("Running Benchmark")
     _run_benchmark(cfg)
 
@@ -339,6 +379,9 @@ def _cmd_sign_check(args, cfg):
     skip_cat = getattr(args, "skip_categories", False)
     skip_thresh = getattr(args, "skip_threshold", False)
 
+    _require_file(cfg.sign_check.gauntlet, "gauntlet file",
+                  "pass --gauntlet <path> or set sign_check.gauntlet in atlas_nano.yaml")
+
     _banner("Sign-Check Atlas Distillation")
     _run_sign_check(cfg, layers=layers, sweep_components=sweep,
                     skip_categories=skip_cat, skip_threshold=skip_thresh)
@@ -356,6 +399,16 @@ def _cmd_gguf(args, cfg):
     })
     extraction_layer = getattr(args, "extraction_layer", None)
     threshold = getattr(args, "threshold", None)
+
+    if cfg.gguf.phase1_results:
+        _require_file(cfg.gguf.phase1_results, "phase1 results file")
+    if cfg.gguf.phase3_results:
+        _require_file(cfg.gguf.phase3_results, "phase3 results file")
+    if cfg.gguf.energy_axis:
+        _require_file(cfg.gguf.energy_axis, "energy axis file")
+    if cfg.gguf.mode == "inject":
+        _require_file(cfg.gguf.input_gguf, "input GGUF file",
+                      "inject mode needs --input <existing model.gguf>")
 
     _banner("GGUF Safety Embedding")
     _run_gguf_embed(cfg, extraction_layer=extraction_layer, threshold=threshold)
@@ -394,6 +447,14 @@ def _cmd_pipeline(args, cfg):
         if args.gguf_inject:
             cfg.gguf.mode = "inject"
             cfg.gguf.input_gguf = args.gguf_inject
+            _require_file(args.gguf_inject, "input GGUF for --gguf-inject")
+
+    if not args.skip_train:
+        _require_file(gauntlet, "gauntlet file",
+                      "pass --gauntlet <path> or use --skip-train with --gate-dir")
+    elif not args.skip_cache:
+        _require_dir(gate_dir, "gate directory",
+                     "with --skip-train you must pass --gate-dir <existing gates>")
 
     Path(output_dir).mkdir(parents=True, exist_ok=True)
 
@@ -707,6 +768,36 @@ def _apply_overrides(args, cfg_section, mapping: dict):
         val = getattr(args, arg_name, None)
         if val is not None:
             setattr(cfg_section, cfg_name, val)
+
+
+def _abort(msg: str, hint: str = None):
+    """Print a friendly error and exit with status 2."""
+    print(f"Error: {msg}", file=sys.stderr)
+    if hint:
+        print(f"Hint:  {hint}", file=sys.stderr)
+    sys.exit(2)
+
+
+def _require_file(path, label: str, hint: str = None):
+    """Exit with a friendly message if the path is missing or not a file."""
+    if not path:
+        _abort(f"missing required {label}.", hint)
+    p = Path(path)
+    if not p.exists():
+        _abort(f"{label} not found: {path}", hint)
+    if not p.is_file():
+        _abort(f"{label} is not a file: {path}", hint)
+
+
+def _require_dir(path, label: str, hint: str = None):
+    """Exit with a friendly message if the path is missing or not a directory."""
+    if not path:
+        _abort(f"missing required {label}.", hint)
+    p = Path(path)
+    if not p.exists():
+        _abort(f"{label} not found: {path}", hint)
+    if not p.is_dir():
+        _abort(f"{label} is not a directory: {path}", hint)
 
 
 def _banner(title: str):

@@ -606,7 +606,9 @@ def main():
     parser.add_argument("--population-size", type=int, default=20)
     
     # Grid search
-    parser.add_argument("--grid-refine", action="store_true", default=True)
+    parser.add_argument("--no-grid-refine", dest="grid_refine",
+                        action="store_false", default=True,
+                        help="Skip grid search refinement after CMA-ES (default: refine)")
     
     args = parser.parse_args()
     

@@ -43,4 +43,14 @@ atlas-nano = "atlas_nano.cli:main"
 Homepage = "https://github.com/VecPLabs/Atlas-Nano"
 
 [tool.setuptools.packages.find]
-include = ["atlas_nano*"]
+include = ["atlas_nano*", "sign_check_atlas*"]
+
+[tool.setuptools]
+py-modules = [
+    "vecp_training_pipeline_v3_qwen3",
+    "vecp_cache_scores_qwen3",
+    "vecp_calibrate_cmaes_qwen3",
+    "vecp_calibration_loader_qwen3",
+    "vecp_full_stack_v2_qwen3",
+    "vecp_benchmark_runner_v2_qwen3",
+]
