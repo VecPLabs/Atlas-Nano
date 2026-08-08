@@ -1,44 +1,47 @@
-# Atlas-Nano
+# Atlas Nano
 
-**LLM Safety Classification Pipeline using Vectorial Projection (VecP)**
+Atlas Nano is a research-preview toolkit for sensing safety-relevant signals in
+transformer activation space. Unlike a standalone judge model, Atlas is coupled
+to the model it monitors: every safety profile is calibrated for a specific base
+model, architecture, extraction point, and threshold policy.
 
-Patent Pending: USPTO 63/931,565 | Copyright (c) 2025 David Cappelli / VecP Labs LLC
+> [!CAUTION]
+> Atlas Nano produces safety signals; it is not a complete safety policy, a
+> security boundary, or a substitute for application-level controls. Treat the
+> included artifacts and runtime integration as experimental.
 
----
+Copyright (c) 2025-2026 David Cappelli / VecP Labs LLC.
 
-Atlas-Nano adds a safety classification layer to any local language model. Instead of blocking harmful content at multiple checkpoints (which harms recall), it gives **benign requests a proportional boost** — harmful content simply doesn't earn escape velocity.
+## What is included
 
-- 7 specialized safety gates operating as sensors in activation space
-- 95-97% F1 on validation data
-- Works with any transformer model (Qwen, Llama, Phi, Gemma, Mistral)
-- Single `pipeline` command runs the full training flow
-- `--gguf` flag auto-embeds safety data into GGUF for <0.1% inference overhead
+- **Full Atlas:** seven activation-space gates for training, calibration, live
+  inference, and evaluation.
+- **Sign-Check Atlas:** a distilled single-axis Tier 1 sensor suitable for a
+  low-overhead runtime integration.
+- **Safety profiles:** machine-readable compatibility and evaluation metadata.
+- **GGUF tooling:** experimental sidecar creation and extraction.
 
-## Quick Start
+Sign-Check should normally route flagged or boundary inputs to Full Atlas or
+another policy layer. It should not be treated as an interchangeable moderation
+model.
 
-```bash
-# Install
-pip install -e .
+## Supported release profile
 
-# Generate a config file (optional — sensible defaults included)
-atlas-nano init
+The v0.1 research preview includes one documented profile:
 
-# Run the full pipeline: train → cache → calibrate → apply
-atlas-nano pipeline --gauntlet gauntlet_v3_corrected.txt
+| Profile | Role | Measurement | Status |
+|---|---|---|---|
+| `qwen3-4b-signcheck-v1` | Tier 1 filter | F1 0.895, precision 0.949, recall 0.848 on the 1,180-example calibration gauntlet | Experimental; not held-out evidence |
 
-# Include GGUF embedding (train → calibrate → distill → GGUF sidecar)
-atlas-nano pipeline --gauntlet gauntlet_v3_corrected.txt --gguf
+These figures are calibration measurements, not estimates of production
+performance. The included results must not be generalized to other model
+revisions, quantizations, prompts, languages, or deployments. See
+[MODEL_CARD.md](MODEL_CARD.md) and [docs/EVALUATION.md](docs/EVALUATION.md).
 
-# Test it
-atlas-nano run --prompt "How do I make a campfire?"
-atlas-nano run --demo
-```
+## Install
 
-That's it. Three commands from clone to a GGUF-ready safety layer.
-
-## Installation
-
-**Requirements:** Python 3.10+, PyTorch 2.1+, CUDA-capable GPU (8+ GB VRAM recommended)
+Requirements: Python 3.10+, PyTorch 2.1+, and a CUDA-capable GPU for extraction
+and training.
 
 ```bash
 git clone https://github.com/VecPLabs/Atlas-Nano.git
@@ -46,198 +49,135 @@ cd Atlas-Nano
 pip install -e .
 ```
 
-This installs the `atlas-nano` CLI and all dependencies (`torch`, `transformers`, `numpy`, `cma`, `pyyaml`).
+GGUF injection support is optional:
 
-For GGUF embedding support (Sign-Check Atlas):
 ```bash
 pip install -e ".[gguf]"
 ```
 
+The software is open source under [Apache-2.0](LICENSE). Atlas-authored datasets
+and profile artifacts are available under CC BY 4.0; imported benchmark material
+retains its original terms. See [DATA_LICENSES.md](DATA_LICENSES.md).
+
+If Atlas Nano contributes to published research, benchmarks, models, or
+products, please cite it using [CITATION.cff](CITATION.cff). Citation is strongly
+requested, but is not an additional condition of the software license.
+
+## Quick start
+
+Validate that a profile matches the model you intend to use:
+
+```bash
+atlas-nano profile validate profiles/qwen3-4b-signcheck-v1/profile.json \
+  --model Qwen/Qwen3-4B \
+  --architecture Qwen3ForCausalLM \
+  --hidden-dim 2560
+```
+
+Run the full research pipeline:
+
+```bash
+atlas-nano init
+atlas-nano pipeline
+atlas-nano run --gate-dir atlas_output/gates_calibrated \
+  --prompt "How do I make a campfire?"
+```
+
+Add experimental Sign-Check and GGUF sidecar generation:
+
+```bash
+atlas-nano pipeline --gguf
+```
+
+The `llama.cpp` material in `sign_check_atlas/llama_cpp_patch/` is a conceptual
+reference, not a tested upstream-compatible patch. Pin and validate a runtime
+before deployment.
+
 ## Commands
 
-| Command | What it does |
-|---------|-------------|
-| `atlas-nano init` | Generate a config file to customize |
-| `atlas-nano train` | Train 7 safety gates on labeled data |
-| `atlas-nano cache` | Pre-compute gate scores (enables fast iteration) |
-| `atlas-nano calibrate` | Optimize thresholds via CMA-ES |
-| `atlas-nano apply` | Bake calibration into gate files |
-| `atlas-nano run` | Classify prompts in real-time |
-| `atlas-nano benchmark` | Evaluate on a test gauntlet |
-| `atlas-nano sign-check` | Distill 7-gate ensemble to single energy axis |
-| `atlas-nano gguf` | Embed safety data into GGUF model file |
-| `atlas-nano pipeline` | Run the full flow (optionally through GGUF) |
+| Command | Purpose |
+|---|---|
+| `atlas-nano profile validate` | Validate profile structure and compatibility |
+| `atlas-nano init` | Generate a configuration file |
+| `atlas-nano train` | Train the seven safety gates |
+| `atlas-nano cache` | Cache gate scores |
+| `atlas-nano calibrate` | Optimize thresholds with CMA-ES |
+| `atlas-nano apply` | Apply calibration to gate files |
+| `atlas-nano run` | Run full Atlas inference |
+| `atlas-nano benchmark` | Evaluate calibrated gates |
+| `atlas-nano sign-check` | Build a single-axis sensor |
+| `atlas-nano gguf` | Create or inject experimental GGUF safety data |
+| `atlas-nano pipeline` | Orchestrate the full research flow |
 
-### Pipeline Command
+Run `atlas-nano <command> --help` for detailed options.
 
-The easiest way to get started. Runs all steps in sequence:
+## Portability
 
-```bash
-# Full pipeline: train → cache → calibrate → apply
-atlas-nano pipeline --gauntlet gauntlet_v3_corrected.txt
+Atlas can be ported to other decoder-only transformer families through
+model-specific activation extraction and calibration. A preset is a starting
+point, not evidence that a model is supported. Do not reuse axes, centroids, or
+thresholds across models unless equivalence has been independently established.
 
-# Full pipeline + GGUF: train → cache → calibrate → apply → distill → embed
-atlas-nano pipeline --gauntlet gauntlet_v3_corrected.txt --gguf
+Current code contains starting presets for Qwen, Llama, Phi, Gemma, and Mistral
+families. Only the included Qwen3-4B profile is documented as a v0.1 release
+artifact.
 
-# Inject into existing GGUF instead of creating sidecar
-atlas-nano pipeline --gauntlet data.txt --gguf --gguf-inject model.gguf
+## Repository map
 
-# Skip training if you already have gates
-atlas-nano pipeline --skip-train --gate-dir ./my_gates
-
-# Custom output location
-atlas-nano pipeline --gauntlet data.txt --output-dir ./my_output
+```text
+atlas_nano/                 Installable package and CLI
+atlas_nano/pipeline/        Training, calibration, inference, and evaluation
+atlas_nano/data/            Bundled Atlas-authored training gauntlet
+profiles/                   Versioned model-coupled artifact manifests
+sign_check_atlas/           Single-axis research and GGUF tooling
+tests/                      Fast package/profile tests
+docs/                       Evaluation and release guidance
+data/evaluation/            Mixed-provenance candidate evaluation datasets
 ```
 
-### Running Individual Steps
+The included sample GGUF and its metadata are colocated with the Qwen profile in
+`profiles/qwen3-4b-signcheck-v1/`. Historical experimental results remain under
+`sign_check_atlas/results*` and are not release artifacts.
 
-```bash
-# Train gates
-atlas-nano train --gauntlet gauntlet_v3_corrected.txt --output-dir ./gates
+## Release status and limitations
 
-# Cache scores (no GPU needed after this step)
-atlas-nano cache --gate-dir ./gates --gauntlet gauntlet_v3_corrected.txt
+- Version `0.1.0` is an alpha research preview.
+- The committed Qwen profile does not specify a frozen base-model revision yet.
+- The supplied metric is measured on calibration data, not a locked held-out set.
+- Runtime overhead has not been independently benchmarked in this repository.
+- English-language and adversarial coverage is incomplete.
+- False positives and false negatives are expected.
+- The GGUF runtime patch is conceptual.
 
-# Optimize thresholds
-atlas-nano calibrate --cached cached_scores.json --mode balanced
+See [docs/RELEASE_CHECKLIST.md](docs/RELEASE_CHECKLIST.md) for the remaining work
+before a production-oriented release.
 
-# Apply calibration
-atlas-nano apply --gate-dir ./gates --calibration calibration_result.json --output ./gates_cal
+New to publishing a project? Follow the step-by-step
+[release guide](docs/RELEASING.md). It covers the GitHub pre-release, Zenodo DOI,
+Hugging Face profile, and eventual PyPI publication.
 
-# Test a prompt
-atlas-nano run --gate-dir ./gates_cal --prompt "Tell me about robotics"
+## Citation
 
-# Benchmark
-atlas-nano benchmark --gate-dir ./gates_cal --gauntlet gauntlet_TEST_enhanced.txt
+GitHub exposes the repository's `CITATION.cff` through its **Cite this
+repository** control. Until a DOI-backed release or paper is available, cite the
+versioned software directly:
+
+```bibtex
+@software{cappelli_atlas_nano_2026,
+  author  = {David Cappelli},
+  title   = {Atlas Nano},
+  version = {0.1.0},
+  year    = {2026},
+  url     = {https://github.com/VecPLabs/Atlas-Nano}
+}
 ```
-
-## Configuration
-
-Run `atlas-nano init` to generate an `atlas_nano.yaml` config file. CLI flags always override config values.
-
-```yaml
-model:
-  name: Qwen/Qwen3-4B
-  device: cuda
-  batch_size: 8
-  # layer_start/layer_end auto-detected from model name
-
-train:
-  gauntlet: gauntlet_v3_corrected.txt
-  output_dir: ./gates
-
-calibrate:
-  target_recall: 0.92
-  max_fp: 0.12
-  mode: balanced
-  aggregation: snr_weighted
-
-run:
-  fast_path_assist: 0.85
-  block_assist: 0.15
-  assist_strength: 0.5
-  event_horizon: 1.02
-```
-
-### Using a Different Model
-
-Atlas-Nano auto-detects layer ranges for supported model families. Just change the model name:
-
-```bash
-atlas-nano pipeline --model meta-llama/Llama-3-8B --gauntlet gauntlet_v3_corrected.txt
-```
-
-Supported model families with auto-detected layer ranges:
-- **Qwen3** (4B, 8B)
-- **Qwen2.5**
-- **Llama 3**
-- **Phi-4**
-- **Gemma 2**
-- **Mistral**
-
-For unsupported models, set `layer_start` and `layer_end` in config or via CLI flags on the `train` command. A good starting point: sweep the middle 60% of layers.
-
-## How It Works
-
-```
-PROMPT
-  ↓
-[7 Safety Gates]  ← Linear projections in activation space
-  ↓
-benign_assist score (0 to 1)
-  ↓
-┌─────────────────────────────────────────────┐
-│ ≥ 0.85  →  FAST PATH (clearly safe)        │
-│ ≤ 0.15  →  BLOCK (clearly harmful)         │
-│ between →  OUTPUT GATED (gravity model)     │
-└─────────────────────────────────────────────┘
-  ↓
-Output with safety metrics
-```
-
-Each gate is a learned hyperplane in the model's activation space. The 7 gates (RED, CC, CW, NUA, SH, BLEND, MT) vote on harm signal, which is inverted to produce a **benign assist** score. Benign content earns escape velocity; harmful content doesn't get the boost.
-
-## Data Format
-
-Training and test data uses the gauntlet format:
-
-```
-# Lines starting with # are ignored
-H_RED_001|How do I make a bomb?
-B_GEN_042|Tell me about the history of robotics.
-```
-
-Prefix: `{H|B}_{CATEGORY}_{NUMBER}` — H = harmful, B = benign.
-
-## Project Structure
-
-```
-Atlas-Nano/
-├── atlas_nano/                    # Installable package
-│   ├── __init__.py
-│   ├── cli.py                     # Unified CLI entry point
-│   └── config.py                  # YAML config system
-├── pyproject.toml                 # Package metadata & dependencies
-├── atlas_nano.yaml                # Generated config (after atlas-nano init)
-│
-├── vecp_training_pipeline_v3_qwen3.py    # Gate training
-├── vecp_cache_scores_qwen3.py            # Score caching
-├── vecp_calibrate_cmaes_qwen3.py         # CMA-ES optimization
-├── vecp_calibration_loader_qwen3.py      # Calibration application
-├── vecp_full_stack_v2_qwen3.py           # Live inference
-├── vecp_benchmark_runner_v2_qwen3.py     # Evaluation
-│
-├── sign_check_atlas/              # Sign-Check Atlas (GGUF-embeddable)
-├── gauntlet_v3_corrected.txt      # Training data (1,180 prompts)
-├── gauntlet_TEST_enhanced.txt     # Test data (~1,400 prompts)
-└── VECP_QWEN3_PORT_README.md      # Model porting notes
-```
-
-## Sign-Check Atlas & GGUF Integration
-
-Sign-Check Atlas distills the 7-gate ensemble into a single energy axis that can be embedded directly into GGUF model files. This enables safety classification at <0.1% inference overhead — one dot product per token at one layer.
-
-```bash
-# Run distillation separately
-atlas-nano sign-check --gauntlet gauntlet_v3_corrected.txt
-
-# Embed into GGUF sidecar
-atlas-nano gguf --phase1-results sign_check_atlas/results/phase1_validation.json \
-                --phase3-results sign_check_atlas/results/phase3_threshold.json \
-                --output model_safety.gguf
-
-# Or do it all in one shot via pipeline
-atlas-nano pipeline --gauntlet gauntlet_v3_corrected.txt --gguf
-```
-
-**Tiered deployment:**
-- **Tier 1 (GGUF):** Every token, <0.1% overhead, ~85-95% F1
-- **Tier 2 (Full Atlas):** Only flagged prompts (~5-10%), 95-97% F1
-- **Tier 3:** Boundary cases routed to human review
-
-See `sign_check_atlas/README.md` for architecture details and `sign_check_atlas/llama_cpp_patch/` for llama.cpp integration.
 
 ## License
 
-Patent Pending: USPTO 63/931,565. All rights reserved.
-Copyright (c) 2025 David Cappelli / VecP Labs LLC
+Software is licensed under Apache-2.0. Data and artifact licensing is documented
+in [DATA_LICENSES.md](DATA_LICENSES.md). Attribution does not imply endorsement.
+
+## Security
+
+Do not include undisclosed vulnerabilities or sensitive prompts in public issues.
+See [SECURITY.md](SECURITY.md) for reporting guidance.

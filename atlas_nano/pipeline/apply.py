@@ -6,18 +6,17 @@ Utility to apply CMA-ES calibration results to gate matrices.
 
 Usage:
     # In your benchmark script:
-    from vecp_calibration_loader import apply_calibration
+    from atlas_nano.pipeline.apply import apply_calibration
     
     gate_matrices, gate_configs = load_gates(gate_dir)
     gate_matrices = apply_calibration(gate_matrices, "calibration_result.json")
 
 Or standalone to update gate files:
-    python vecp_calibration_loader.py \
+    python -m atlas_nano.pipeline.apply \
         --gate-dir ./gates_qwen3 \
         --calibration calibration_result.json \
         --output ./gates_qwen3_calibrated
 
-Patent Pending: USPTO 63/931,565
 Copyright (c) 2025 David Cappelli / VecP Labs
 """
 

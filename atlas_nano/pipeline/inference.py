@@ -34,7 +34,6 @@ Pipeline:
          Benign content earns escape velocity.
          Harmful content doesn't get the assist.
 
-Patent Pending: USPTO 63/931,565
 Copyright (c) 2025 David Cappelli / VecP Labs
 """
 

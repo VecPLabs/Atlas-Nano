@@ -23,7 +23,6 @@ Usage:
         --input model_safety.gguf \
         --validate sign_check_atlas/results/phase1_validation.json
 
-Patent Pending: USPTO 63/931,565
 Copyright (c) 2025-2026 David Cappelli / VecP Labs
 """
 

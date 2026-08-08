@@ -177,11 +177,27 @@ set defaults. CLI flags override config file values.
     sub.add_argument("--gate-dir", help="Gate directory (if skipping train)")
     sub.add_argument("--output-dir", help="Base output directory")
 
+    # ---- profile ----
+    sub = subparsers.add_parser("profile", help="Inspect model-coupled safety profiles")
+    profile_sub = sub.add_subparsers(dest="profile_command", required=True)
+    validate = profile_sub.add_parser("validate", help="Validate a profile manifest")
+    validate.add_argument("path", help="Path to profile.json")
+    validate.add_argument("--model", dest="profile_model", help="Expected base model name")
+    validate.add_argument("--architecture", help="Expected model architecture")
+    validate.add_argument("--revision", help="Expected base model revision")
+    validate.add_argument("--hidden-dim", type=int, help="Expected hidden dimension")
+
     args = parser.parse_args()
 
     if args.command is None:
         parser.print_help()
         sys.exit(0)
+
+    # Profile validation is intentionally dependency-light so compatibility can
+    # be checked before loading a model or the rest of the pipeline stack.
+    if args.command == "profile":
+        _cmd_profile(args)
+        return
 
     # Load config
     from atlas_nano.config import load_config
@@ -229,6 +245,28 @@ def _cmd_init(args):
     print(f"Created config file: {path}")
     print("Edit this file to customize your pipeline, then run:")
     print("  atlas-nano pipeline")
+
+
+def _cmd_profile(args):
+    from atlas_nano.profile import (
+        ProfileError, RuntimeModel, assert_compatible, load_profile, verify_artifacts,
+    )
+
+    try:
+        profile = load_profile(args.path)
+        verify_artifacts(profile, Path(args.path).resolve().parent)
+        if args.profile_model:
+            assert_compatible(profile, RuntimeModel(
+                name=args.profile_model,
+                architecture=args.architecture,
+                revision=args.revision,
+                hidden_dim=args.hidden_dim,
+            ))
+    except ProfileError as exc:
+        _abort(str(exc))
+    print(f"Valid profile: {profile['profile_id']}")
+    print(f"Base model:    {profile['base_model']}")
+    print(f"Role:          {profile['decision']['role']}")
 
 
 def _cmd_train(args, cfg):
@@ -527,9 +565,10 @@ def _cmd_pipeline(args, cfg):
 
 def _run_training(cfg):
     """Run gate training."""
-    import sys
-    sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-    from vecp_training_pipeline_v3_qwen3 import TrainingConfig, run_pipeline, load_gauntlet, add_expanded_data, export_expanded_gauntlet
+    from atlas_nano.pipeline.training import (
+        TrainingConfig, add_expanded_data, export_expanded_gauntlet,
+        load_gauntlet, run_pipeline,
+    )
 
     if cfg.train.generate_data_only:
         categories = load_gauntlet(cfg.train.gauntlet) if cfg.train.gauntlet else {}
@@ -551,12 +590,10 @@ def _run_training(cfg):
 
 def _run_cache(cfg):
     """Run score caching."""
-    import sys
-    sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-    from vecp_cache_scores_qwen3 import main as cache_main
+    from atlas_nano.pipeline.cache import main as cache_main
 
-    sys.argv = [
-        "vecp_cache_scores_qwen3",
+    argv = [
+        "atlas_nano.pipeline.cache",
         "--model", cfg.model.name,
         "--gate-dir", cfg.cache.gate_dir,
         "--gauntlet", cfg.cache.gauntlet,
@@ -564,18 +601,16 @@ def _run_cache(cfg):
         "--device", cfg.model.device,
     ]
     if cfg.cache.obf_gate:
-        sys.argv += ["--obf-gate", cfg.cache.obf_gate]
-    cache_main()
+        argv += ["--obf-gate", cfg.cache.obf_gate]
+    _run_entrypoint(cache_main, argv)
 
 
 def _run_calibrate(cfg):
     """Run CMA-ES calibration."""
-    import sys
-    sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-    from vecp_calibrate_cmaes_qwen3 import main as cal_main
+    from atlas_nano.pipeline.calibrate import main as cal_main
 
-    sys.argv = [
-        "vecp_calibrate_cmaes_qwen3",
+    argv = [
+        "atlas_nano.pipeline.calibrate",
         "--cached", cfg.calibrate.cached,
         "--output", cfg.calibrate.output,
         "--target-recall", str(cfg.calibrate.target_recall),
@@ -587,37 +622,33 @@ def _run_calibrate(cfg):
         "--population-size", str(cfg.calibrate.population_size),
     ]
     if not cfg.calibrate.grid_refine:
-        sys.argv.append("--no-grid-refine")  # Note: may need adjustment
+        argv.append("--no-grid-refine")
     if not cfg.calibrate.optimize_weights:
-        sys.argv.append("--no-optimize-weights")
-    cal_main()
+        argv.append("--no-optimize-weights")
+    _run_entrypoint(cal_main, argv)
 
 
 def _run_apply(cfg):
     """Run calibration application."""
-    import sys
-    sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-    from vecp_calibration_loader_qwen3 import main as apply_main
+    from atlas_nano.pipeline.apply import main as apply_main
 
-    sys.argv = [
-        "vecp_calibration_loader_qwen3",
+    argv = [
+        "atlas_nano.pipeline.apply",
         "--gate-dir", cfg.apply.gate_dir,
         "--calibration", cfg.apply.calibration,
         "--output", cfg.apply.output,
     ]
     if cfg.apply.obf_gate:
-        sys.argv += ["--obf-gate", cfg.apply.obf_gate]
-    apply_main()
+        argv += ["--obf-gate", cfg.apply.obf_gate]
+    _run_entrypoint(apply_main, argv)
 
 
 def _run_inference(cfg, prompt=None, demo=False):
     """Run live inference."""
-    import sys
-    sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-    from vecp_full_stack_v2_qwen3 import main as run_main
+    from atlas_nano.pipeline.inference import main as run_main
 
-    sys.argv = [
-        "vecp_full_stack_v2_qwen3",
+    argv = [
+        "atlas_nano.pipeline.inference",
         "--model", cfg.model.name,
         "--gate-dir", cfg.run.gate_dir,
         "--device", cfg.model.device,
@@ -627,22 +658,20 @@ def _run_inference(cfg, prompt=None, demo=False):
         "--event-horizon", str(cfg.run.event_horizon),
     ]
     if prompt:
-        sys.argv += ["--prompt", prompt]
+        argv += ["--prompt", prompt]
     if demo:
-        sys.argv.append("--demo")
+        argv.append("--demo")
     if cfg.run.benign_matrix:
-        sys.argv += ["--benign-matrix", cfg.run.benign_matrix]
-    run_main()
+        argv += ["--benign-matrix", cfg.run.benign_matrix]
+    _run_entrypoint(run_main, argv)
 
 
 def _run_benchmark(cfg):
     """Run benchmark evaluation."""
-    import sys
-    sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-    from vecp_benchmark_runner_v2_qwen3 import main as bench_main
+    from atlas_nano.pipeline.benchmark import main as bench_main
 
-    sys.argv = [
-        "vecp_benchmark_runner_v2_qwen3",
+    argv = [
+        "atlas_nano.pipeline.benchmark",
         "--model", cfg.model.name,
         "--gate-dir", cfg.benchmark.gate_dir,
         "--gauntlet", cfg.benchmark.gauntlet,
@@ -655,30 +684,26 @@ def _run_benchmark(cfg):
         "--aggregation-mode", cfg.benchmark.aggregation_mode,
     ]
     if cfg.benchmark.max_prompts is not None:
-        sys.argv += ["--max-prompts", str(cfg.benchmark.max_prompts)]
+        argv += ["--max-prompts", str(cfg.benchmark.max_prompts)]
     if cfg.benchmark.benign_matrix:
-        sys.argv += ["--benign-matrix", cfg.benchmark.benign_matrix]
+        argv += ["--benign-matrix", cfg.benchmark.benign_matrix]
     if cfg.benchmark.obf_gate:
-        sys.argv += ["--obf-gate", cfg.benchmark.obf_gate]
+        argv += ["--obf-gate", cfg.benchmark.obf_gate]
     if hasattr(cfg.benchmark, "_uniform_threshold") and cfg.benchmark._uniform_threshold is not None:
-        sys.argv += ["--uniform-threshold", str(cfg.benchmark._uniform_threshold)]
-    bench_main()
+        argv += ["--uniform-threshold", str(cfg.benchmark._uniform_threshold)]
+    _run_entrypoint(bench_main, argv)
 
 
 def _run_sign_check(cfg, layers=None, sweep_components=False,
                      skip_categories=False, skip_threshold=False):
     """Run Sign-Check Atlas: Phase 1 (validate) + Phase 2 (categories) + Phase 3 (threshold)."""
-    import sys
-    repo_root = str(Path(__file__).resolve().parent.parent)
-    sys.path.insert(0, repo_root)
-
     output_dir = cfg.sign_check.output_dir
     Path(output_dir).mkdir(parents=True, exist_ok=True)
 
     # Phase 1: Hypothesis validation - compute energy axis
     print("  Phase 1: Validating energy axis hypothesis...")
     from sign_check_atlas.validate_hypothesis import main as validate_main
-    sys.argv = [
+    argv = [
         "validate_hypothesis",
         "--model", cfg.model.name,
         "--gauntlet", cfg.sign_check.gauntlet,
@@ -688,17 +713,17 @@ def _run_sign_check(cfg, layers=None, sweep_components=False,
         "--batch-size", str(cfg.model.batch_size),
     ]
     if layers:
-        sys.argv += ["--layers"] + [str(l) for l in layers]
+        argv += ["--layers"] + [str(l) for l in layers]
     if sweep_components:
-        sys.argv.append("--sweep-components")
-    validate_main()
+        argv.append("--sweep-components")
+    _run_entrypoint(validate_main, argv)
 
     # Phase 2: Per-category analysis
     if not skip_categories:
         print("  Phase 2: Per-category analysis...")
         from sign_check_atlas.category_analysis import main as category_main
         energy_axis_path = f"{output_dir}/energy_axis.npy"
-        sys.argv = [
+        argv = [
             "category_analysis",
             "--model", cfg.model.name,
             "--gauntlet", cfg.sign_check.gauntlet,
@@ -709,14 +734,14 @@ def _run_sign_check(cfg, layers=None, sweep_components=False,
             "--batch-size", str(cfg.model.batch_size),
         ]
         if layers:
-            sys.argv += ["--layers"] + [str(l) for l in layers]
-        category_main()
+            argv += ["--layers"] + [str(l) for l in layers]
+        _run_entrypoint(category_main, argv)
 
     # Phase 3: Threshold optimization
     if not skip_threshold:
         print("  Phase 3: Threshold optimization...")
         from sign_check_atlas.threshold_search import main as threshold_main
-        sys.argv = [
+        argv = [
             "threshold_search",
             "--harm-energies", f"{output_dir}/harm_energies.npy",
             "--safe-energies", f"{output_dir}/safe_energies.npy",
@@ -726,41 +751,46 @@ def _run_sign_check(cfg, layers=None, sweep_components=False,
             "--max-fp-rate", str(cfg.sign_check.max_fp_rate),
             "--output-dir", output_dir,
         ]
-        threshold_main()
+        _run_entrypoint(threshold_main, argv)
 
 
 def _run_gguf_embed(cfg, extraction_layer=None, threshold=None):
     """Run GGUF safety embedding (Phase 4)."""
-    import sys
-    repo_root = str(Path(__file__).resolve().parent.parent)
-    sys.path.insert(0, repo_root)
-
     from sign_check_atlas.gguf_integration.embed_safety import main as embed_main
 
-    sys.argv = [
+    argv = [
         "embed_safety",
         "--output", cfg.gguf.output,
         "--mode", cfg.gguf.mode,
         "--model-name", cfg.model.name,
     ]
     if cfg.gguf.phase1_results:
-        sys.argv += ["--phase1-results", cfg.gguf.phase1_results]
+        argv += ["--phase1-results", cfg.gguf.phase1_results]
     if cfg.gguf.phase3_results:
-        sys.argv += ["--phase3-results", cfg.gguf.phase3_results]
+        argv += ["--phase3-results", cfg.gguf.phase3_results]
     if cfg.gguf.energy_axis:
-        sys.argv += ["--energy-axis", cfg.gguf.energy_axis]
+        argv += ["--energy-axis", cfg.gguf.energy_axis]
     if cfg.gguf.input_gguf:
-        sys.argv += ["--input", cfg.gguf.input_gguf]
+        argv += ["--input", cfg.gguf.input_gguf]
     if extraction_layer is not None:
-        sys.argv += ["--extraction-layer", str(extraction_layer)]
+        argv += ["--extraction-layer", str(extraction_layer)]
     if threshold is not None:
-        sys.argv += ["--threshold", str(threshold)]
-    embed_main()
+        argv += ["--threshold", str(threshold)]
+    _run_entrypoint(embed_main, argv)
 
 
 # =============================================================================
 # HELPERS
 # =============================================================================
+
+def _run_entrypoint(entrypoint, argv):
+    """Run an argparse entry point without leaking process-global argv changes."""
+    original_argv = sys.argv
+    try:
+        sys.argv = argv
+        return entrypoint()
+    finally:
+        sys.argv = original_argv
 
 def _apply_overrides(args, cfg_section, mapping: dict):
     """Apply CLI args onto a config section. Only overrides if arg is not None."""

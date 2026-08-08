@@ -5,12 +5,13 @@ Loads settings from YAML config files with sensible defaults.
 Users can override any setting via CLI flags or config file.
 """
 
-import yaml
 from pathlib import Path
 from dataclasses import dataclass, field, asdict
 from typing import Optional, Dict, Any
 
 DEFAULT_CONFIG_NAME = "atlas_nano.yaml"
+PACKAGE_DIR = Path(__file__).resolve().parent
+DEFAULT_TRAINING_GAUNTLET = str(PACKAGE_DIR / "data" / "gauntlet_v3_corrected.txt")
 
 
 @dataclass
@@ -27,7 +28,7 @@ class ModelConfig:
 @dataclass
 class TrainConfig:
     """Training pipeline settings."""
-    gauntlet: str = "gauntlet_v3_corrected.txt"
+    gauntlet: str = DEFAULT_TRAINING_GAUNTLET
     output_dir: str = "./gates"
     generate_data_only: bool = False
 
@@ -36,7 +37,7 @@ class TrainConfig:
 class CacheConfig:
     """Score caching settings."""
     gate_dir: str = "./gates"
-    gauntlet: str = "gauntlet_v3_corrected.txt"
+    gauntlet: str = DEFAULT_TRAINING_GAUNTLET
     output: str = "cached_scores.json"
     obf_gate: Optional[str] = None
 
@@ -83,7 +84,7 @@ class RunConfig:
 class BenchmarkConfig:
     """Benchmark evaluation settings."""
     gate_dir: str = "./gates_calibrated"
-    gauntlet: str = "gauntlet_TEST_enhanced.txt"
+    gauntlet: Optional[str] = None
     output: str = "vecp_v2_results"
     max_prompts: Optional[int] = None
     block_assist: float = 0.12
@@ -98,7 +99,7 @@ class BenchmarkConfig:
 @dataclass
 class SignCheckConfig:
     """Sign-Check Atlas settings (single-axis distillation for GGUF)."""
-    gauntlet: str = "gauntlet_v3_corrected.txt"
+    gauntlet: str = DEFAULT_TRAINING_GAUNTLET
     output_dir: str = "sign_check_atlas/results"
     component: str = "residual"
     # Phase 3 threshold search
@@ -168,6 +169,7 @@ def load_config(config_path: Optional[str] = None) -> PipelineConfig:
 
     for path in paths_to_try:
         if path.exists():
+            import yaml
             with open(path) as f:
                 data = yaml.safe_load(f) or {}
             _apply_dict(config, data)
@@ -191,6 +193,7 @@ def load_config(config_path: Optional[str] = None) -> PipelineConfig:
 
 def save_default_config(path: str = DEFAULT_CONFIG_NAME):
     """Write a default config file with comments for the user to edit."""
+    import yaml
     config = PipelineConfig()
     data = _to_serializable(asdict(config))
     with open(path, "w") as f:

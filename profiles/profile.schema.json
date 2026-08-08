@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://vecplabs.com/schemas/atlas-profile-v1.json",
+  "title": "Atlas Nano safety profile",
+  "type": "object",
+  "required": ["schema_version", "profile_id", "atlas_version", "license", "attribution", "base_model", "architecture", "extraction", "decision", "evaluation"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "profile_id": {"type": "string", "minLength": 1},
+    "atlas_version": {"type": "string", "minLength": 1},
+    "license": {"type": "string", "minLength": 1},
+    "attribution": {"type": "string", "minLength": 1},
+    "base_model": {"type": "string", "minLength": 1},
+    "base_model_revision": {"type": ["string", "null"]},
+    "architecture": {"type": "string", "minLength": 1},
+    "extraction": {
+      "type": "object",
+      "required": ["component", "layer", "hidden_dim"],
+      "properties": {
+        "component": {"type": "string"},
+        "layer": {"type": "integer", "minimum": 0},
+        "hidden_dim": {"type": "integer", "minimum": 1}
+      },
+      "additionalProperties": false
+    },
+    "decision": {
+      "type": "object",
+      "required": ["role", "threshold"],
+      "properties": {
+        "role": {"enum": ["tier1_filter", "full_classifier"]},
+        "threshold": {"type": "number"},
+        "boundary_low": {"type": "number"},
+        "boundary_high": {"type": "number"}
+      }
+    },
+    "evaluation": {
+      "type": "object",
+      "required": ["split", "n_harmful", "n_benign", "metrics"],
+      "properties": {
+        "split": {"enum": ["calibration", "validation", "held_out", "external"]},
+        "n_harmful": {"type": "integer", "minimum": 0},
+        "n_benign": {"type": "integer", "minimum": 0},
+        "metrics": {"type": "object"}
+      }
+    },
+    "artifacts": {"type": "array", "items": {"type": "object"}}
+  },
+  "additionalProperties": true
+}

@@ -9,7 +9,7 @@ This runs on CACHED scores - no model inference needed. Calibration takes
 seconds instead of hours.
 
 Usage:
-    python vecp_calibrate_cmaes.py \
+    python -m atlas_nano.pipeline.calibrate \
         --cached cached_scores.json \
         --target-recall 0.92 \
         --max-fp 0.12 \
@@ -21,7 +21,6 @@ Optimization targets:
     - Or maximize F1 score
     - Or custom weighted objective
 
-Patent Pending: USPTO 63/931,565
 Copyright (c) 2025 David Cappelli / VecP Labs
 """
 

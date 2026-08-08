@@ -44,7 +44,6 @@ Usage:
         --phase1-results sign_check_atlas/results/phase1_validation.json \
         --phase3-results sign_check_atlas/results/phase3_threshold.json
 
-Patent Pending: USPTO 63/931,565
 Copyright (c) 2025-2026 David Cappelli / VecP Labs
 """
 

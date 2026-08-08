@@ -31,7 +31,6 @@ Usage:
         --safe-energies sign_check_atlas/results/safe_energies.npy \
         --mode balanced --min-recall 0.85 --max-fp-rate 0.05
 
-Patent Pending: USPTO 63/931,565
 Copyright (c) 2025-2026 David Cappelli / VecP Labs
 """
 
@@ -305,8 +304,6 @@ def run_threshold_search(args):
         # Full pipeline: load model, extract, compute
         print("[1/4] Computing energy distributions from model...")
         import torch
-        import sys
-        sys.path.insert(0, str(Path(__file__).parent.parent))
         from sign_check_atlas.validate_hypothesis import (
             load_gauntlet, split_by_label, ActivationExtractor,
             compute_energy_axis, evaluate_sign_check

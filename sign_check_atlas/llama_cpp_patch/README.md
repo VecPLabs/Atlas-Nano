@@ -2,12 +2,12 @@
 
 ## Overview
 
-This patch adds near-zero-cost safety classification to llama.cpp by reading
-a sign-check energy axis from the GGUF model file and computing a single dot
-product during inference.
+This conceptual patch shows how llama.cpp could read a sign-check energy axis
+from a GGUF file and compute one dot product during inference.
 
-**Performance overhead:** < 0.1% of inference time (one dot product per token
-at one layer).
+**Performance:** low overhead is a design target. The `<0.1%` figure has not
+been reproduced by a benchmark in this repository and is not a release
+guarantee.
 
 ## Files
 
@@ -109,6 +109,9 @@ TIER 3: External verification (boundary cases)
 
 ## Notes
 
+This is not a supported production patch. Pin an upstream commit, adapt the
+integration, and add end-to-end correctness and performance tests before use.
+
 - The patch is conceptual — exact line numbers depend on llama.cpp version.
 - The `safety_check.h` header is self-contained and can be used as a
   reference implementation for any GGML-based runtime.
@@ -117,5 +120,4 @@ TIER 3: External verification (boundary cases)
 
 ---
 
-*Patent Pending: USPTO 63/931,565*
 *Copyright (c) 2025-2026 David Cappelli / VecP Labs*

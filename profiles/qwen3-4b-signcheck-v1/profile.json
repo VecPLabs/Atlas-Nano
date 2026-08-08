@@ -1,0 +1,52 @@
+{
+  "schema_version": 1,
+  "profile_id": "qwen3-4b-signcheck-v1",
+  "atlas_version": "0.1.0",
+  "license": "CC-BY-4.0",
+  "attribution": "Atlas Nano, David Cappelli / VecP Labs LLC",
+  "base_model": "Qwen/Qwen3-4B",
+  "base_model_revision": null,
+  "architecture": "Qwen3ForCausalLM",
+  "extraction": {
+    "component": "residual",
+    "layer": 22,
+    "hidden_dim": 2560
+  },
+  "decision": {
+    "role": "tier1_filter",
+    "threshold": -0.03469539650041742,
+    "boundary_low": -0.0628472230609147,
+    "boundary_high": -0.006543569939920134
+  },
+  "evaluation": {
+    "split": "calibration",
+    "dataset": "atlas_nano/data/gauntlet_v3_corrected.txt",
+    "n_harmful": 761,
+    "n_benign": 419,
+    "metrics": {
+      "precision": 0.9485294117647058,
+      "recall": 0.8475689881734559,
+      "f1": 0.8952116585704372,
+      "accuracy": 0.8720338983050847,
+      "false_positive_rate": 0.08353221957040573
+    },
+    "measured_at": "2026-03-13T19:18:17.265887"
+  },
+  "artifacts": [
+    {
+      "path": "model_safety.gguf",
+      "sha256": "309f56b47bd3e1bda9ab0072665c21b24ff7ea22b7fbdaa0920c99bcd67b0a93",
+      "status": "experimental"
+    },
+    {
+      "path": "model_safety_metadata.json",
+      "sha256": "f3ddee700ac4dd7782c6706d05aac239c6fca74cdb3e6ec6a3dbfddf8c1ccf91",
+      "status": "experimental"
+    }
+  ],
+  "limitations": [
+    "Base model revision was not recorded.",
+    "Threshold metrics were measured on calibration data.",
+    "The llama.cpp integration is conceptual and not pinned to an upstream commit."
+  ]
+}

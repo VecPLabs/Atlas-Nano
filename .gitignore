@@ -24,3 +24,17 @@ vecp_v2_results*
 # OS
 .DS_Store
 Thumbs.db
+
+# Local model and profile artifacts
+*.safetensors
+*.bin
+*.pt
+*.pth
+*.gguf
+!model_safety.gguf
+
+# Test and tooling caches
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
