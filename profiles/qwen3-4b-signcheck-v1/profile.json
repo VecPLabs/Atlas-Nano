@@ -40,7 +40,7 @@
     },
     {
       "path": "model_safety_metadata.json",
-      "sha256": "f3ddee700ac4dd7782c6706d05aac239c6fca74cdb3e6ec6a3dbfddf8c1ccf91",
+      "sha256": "672f2e7b28fa74f406bba70e4364032dd6c7ca9e6e6c8c4cd544036121ae2014",
       "status": "experimental"
     }
   ],

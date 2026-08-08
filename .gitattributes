@@ -1,0 +1,2 @@
+profiles/qwen3-4b-signcheck-v1/model_safety_metadata.json text eol=lf
+*.gguf binary
