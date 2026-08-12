@@ -7,9 +7,9 @@
  * by computing a single dot product at the specified extraction layer.
  *
  * Performance: One dot product + one comparison per token at one layer.
- * Overhead: < 0.1% of total inference time.
+ * Cost model: one dot product per checked token. Benchmark overhead in the
+ * target runtime and hardware before making performance claims.
  *
- * Patent Pending: USPTO 63/931,565
  * Copyright (c) 2025-2026 David Cappelli / VecP Labs
  */
 

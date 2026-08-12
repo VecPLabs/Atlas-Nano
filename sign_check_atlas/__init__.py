@@ -18,7 +18,6 @@ Modules:
     gguf_integration     - Phase 4: GGUF embedding and reading
     llama_cpp_patch      - Phase 5: llama.cpp integration
 
-Patent Pending: USPTO 63/931,565
 Copyright (c) 2025-2026 David Cappelli / VecP Labs
 """
 

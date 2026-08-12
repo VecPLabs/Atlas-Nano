@@ -15,7 +15,6 @@ Usage:
     python sign_check_atlas/gguf_integration/test_gguf.py --dim 2560  # Qwen3-4B
     python sign_check_atlas/gguf_integration/test_gguf.py --dim 3072  # Phi-4
 
-Patent Pending: USPTO 63/931,565
 Copyright (c) 2025-2026 David Cappelli / VecP Labs
 """
 
@@ -26,7 +25,7 @@ import tempfile
 import numpy as np
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from sign_check_atlas.gguf_integration.embed_safety import SafetyMetadata, GGUFSafetyWriter
 from sign_check_atlas.gguf_integration.extract_safety import GGUFSafetyReader
 

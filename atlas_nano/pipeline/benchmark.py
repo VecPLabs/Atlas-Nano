@@ -12,14 +12,13 @@ Captures:
   - output gate metrics (if monitored)
 
 Usage:
-    python vecp_benchmark_runner_v2.py \
+    python -m atlas_nano.pipeline.benchmark \
         --gate-dir ./gates \
         --gauntlet gauntlet_v3.txt \
         --benign-matrix benign_matrix.pt \
         --block-assist 0.12 \
         --output results_v2.json
 
-Patent Pending: USPTO 63/931,565
 Copyright (c) 2025 David Cappelli / VecP Labs
 """
 
@@ -34,7 +33,7 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 from typing import Dict, List, Tuple
 
 # Import v2.0 stack
-from vecp_full_stack_v2_qwen3 import (
+from atlas_nano.pipeline.inference import (
     VecPFullStackV2, 
     FullStackConfigV2, 
     load_gates,

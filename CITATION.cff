@@ -1,0 +1,18 @@
+cff-version: 1.2.0
+message: >-
+  If Atlas Nano contributes to published research, benchmarks, models, or
+  products, please cite it using this metadata.
+title: Atlas Nano
+type: software
+version: 0.1.0
+authors:
+  - family-names: Cappelli
+    given-names: David
+repository-code: https://github.com/VecPLabs/Atlas-Nano
+url: https://github.com/VecPLabs/Atlas-Nano
+license: Apache-2.0
+keywords:
+  - language-model safety
+  - activation-space monitoring
+  - vectorial projection
+  - guardrails

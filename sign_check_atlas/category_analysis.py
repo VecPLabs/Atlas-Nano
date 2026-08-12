@@ -32,17 +32,15 @@ Usage:
     # Also test on enhanced gauntlet
     python sign_check_atlas/category_analysis.py \
         --model Qwen/Qwen3-4B \
-        --gauntlet gauntlet_TEST_enhanced.txt \
+        --gauntlet data/evaluation/gauntlet_TEST_enhanced.txt \
         --energy-axis sign_check_atlas/results/energy_axis.npy
 
-Patent Pending: USPTO 63/931,565
 Copyright (c) 2025-2026 David Cappelli / VecP Labs
 """
 
 import argparse
 import json
 import os
-import sys
 import time
 import numpy as np
 import torch
@@ -51,7 +49,6 @@ from pathlib import Path
 from typing import Dict, List, Tuple, Optional
 from datetime import datetime
 
-sys.path.insert(0, str(Path(__file__).parent.parent))
 from sign_check_atlas.validate_hypothesis import (
     load_gauntlet, ActivationExtractor, compute_energy_axis
 )

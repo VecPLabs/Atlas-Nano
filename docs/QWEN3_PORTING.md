@@ -1,6 +1,5 @@
 # VecP Full Stack v2.0 — Qwen3 4B Port
 
-**Patent Pending: USPTO 63/931,565**
 **Copyright (c) 2025 David Cappelli / VecP Labs LLC**
 
 ---
@@ -40,7 +39,7 @@ The base model is recommended: RLHF safety training in instruct models compresse
 
 ### What Didn't Change
 
-- `vecp_calibrate_cmaes_qwen3.py` — zero model-specific changes (model-agnostic, reads cached scores)
+- `atlas_nano.pipeline.calibrate` — model-agnostic calibration from cached scores
 - All gate logic, aggregation modes, gravity model, obfuscation prefilter — unchanged
 - Component names: `mlp.down_proj`, `self_attn.o_proj` — **identical**
 - Layer accessor: `model.model.layers[N]` — **identical**
@@ -70,21 +69,20 @@ This preserves the **Last Clean Signal Principle** (optimal safety signal at 40-
 
 | File | Purpose |
 |------|---------|
-| `vecp_training_pipeline_v3_qwen3.py` | Train gates on Qwen3 4B |
-| `vecp_cache_scores_qwen3.py` | Cache gate scores for calibration |
-| `vecp_calibrate_cmaes_qwen3.py` | CMA-ES threshold optimization |
-| `vecp_calibration_loader_qwen3.py` | Apply calibration to gate files |
-| `vecp_full_stack_v2_qwen3.py` | Live inference pipeline |
-| `vecp_benchmark_runner_v2_qwen3.py` | Evaluation & metrics |
+| `atlas_nano.pipeline.training` | Train gates on Qwen3 4B |
+| `atlas_nano.pipeline.cache` | Cache gate scores for calibration |
+| `atlas_nano.pipeline.calibrate` | CMA-ES threshold optimization |
+| `atlas_nano.pipeline.apply` | Apply calibration to gate files |
+| `atlas_nano.pipeline.inference` | Live inference pipeline |
+| `atlas_nano.pipeline.benchmark` | Evaluation and metrics |
 
-### Data (4 gauntlets — unchanged)
+### Data
 
 | File | Prompts | Use |
 |------|---------|-----|
-| `gauntlet_v3_corrected.txt` | 1,181 | Training + caching |
-| `gauntlet_CALIBRATE.txt` | 342 | CMA-ES calibration (if using separate split) |
-| `gauntlet_TEST.txt` | 343 | Held-out evaluation |
-| `gauntlet_TEST_enhanced.txt` | ~1,400 | Extended eval with OR-Bench-Hard-1K |
+| `atlas_nano/data/gauntlet_v3_corrected.txt` | 1,180 | Bundled training and calibration data |
+| `data/evaluation/gauntlet_TEST_enhanced.txt` | 1,449 | Mixed-provenance candidate evaluation data |
+| `data/evaluation/gauntlet_HARMBENCH_CLEANED.txt` | varies | Mixed HarmBench-derived evaluation data |
 
 ---
 
@@ -100,43 +98,43 @@ pip install torch transformers numpy cma
 **Full pipeline:**
 ```bash
 # 1. Train gates on Qwen3 4B
-python vecp_training_pipeline_v3_qwen3.py \
-    --train-gauntlet gauntlet_v3_corrected.txt \
+python -m atlas_nano.pipeline.training \
+    --train-gauntlet atlas_nano/data/gauntlet_v3_corrected.txt \
     --output-dir ./gates_qwen3
 
 # 2. Cache scores
-python vecp_cache_scores_qwen3.py \
+python -m atlas_nano.pipeline.cache \
     --gate-dir ./gates_qwen3 \
-    --gauntlet gauntlet_v3_corrected.txt \
+    --gauntlet atlas_nano/data/gauntlet_v3_corrected.txt \
     --output cached_scores_qwen3.json
 
 # 3. CMA-ES calibration
-python vecp_calibrate_cmaes_qwen3.py \
+python -m atlas_nano.pipeline.calibrate \
     --cached cached_scores_qwen3.json \
     --aggregation snr_weighted \
     --output calibration_qwen3.json
 
 # 3.5. Apply calibration
-python vecp_calibration_loader_qwen3.py \
+python -m atlas_nano.pipeline.apply \
     --gate-dir ./gates_qwen3 \
     --calibration calibration_qwen3.json \
     --output ./gates_qwen3_calibrated
 
 # 4. Benchmark (TEST set)
-python vecp_benchmark_runner_v2_qwen3.py \
+python -m atlas_nano.pipeline.benchmark \
     --gate-dir ./gates_qwen3_calibrated \
     --gauntlet gauntlet_TEST.txt \
     --aggregation-mode snr_weighted
 
 # 5. Benchmark (Enhanced set)
-python vecp_benchmark_runner_v2_qwen3.py \
+python -m atlas_nano.pipeline.benchmark \
     --gate-dir ./gates_qwen3_calibrated \
-    --gauntlet gauntlet_TEST_enhanced.txt \
+    --gauntlet data/evaluation/gauntlet_TEST_enhanced.txt \
     --aggregation-mode snr_weighted
 ```
 
 **Note:** All `_qwen3` files are self-consistent — the benchmark runner imports from
-`vecp_full_stack_v2_qwen3.py` directly. Just put all files in the same directory.
+`python -m atlas_nano.pipeline.inference` directly after installing the package.
 
 ---
 
@@ -187,4 +185,6 @@ RLHF COLLABORATION (benchmark: effective_recall = VecP + RLHF)
 | v1 | Qwen2.5-7B (28L, 3584-dim) → Phi4 Mini (32L, 3072-dim) | Phi3 arch class, same hooks |
 | **v2** | **Phi4 Mini (32L, 3072-dim) → Qwen3 4B (36L, 2560-dim)** | **Native transformers, same hooks** |
 
-Three model families, zero hook changes — validates the universality of VecP's geometric approach.
+The shared hook structure across these model families supports further
+portability experiments; it does not establish equivalent accuracy or universal
+compatibility without per-model calibration and held-out evaluation.

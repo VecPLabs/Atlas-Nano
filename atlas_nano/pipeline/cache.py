@@ -6,7 +6,7 @@ Run all prompts through the gates ONCE and cache the raw scores.
 This allows instant iteration on thresholds/weights without model inference.
 
 Usage:
-    python vecp_cache_scores.py \
+    python -m atlas_nano.pipeline.cache \
         --gate-dir ./gates_qwen3 \
         --gauntlet gauntlet_v3_corrected.txt \
         --output cached_scores.json
@@ -41,7 +41,6 @@ Output format:
     }
 }
 
-Patent Pending: USPTO 63/931,565
 Copyright (c) 2025 David Cappelli / VecP Labs
 """
 

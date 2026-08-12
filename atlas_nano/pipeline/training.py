@@ -18,14 +18,13 @@ Fixes identified issues:
 
 Usage:
     # Full pipeline
-    python vecp_training_pipeline_v3.py --model Qwen/Qwen3-4B \
-        --train-gauntlet gauntlet_TRAIN_v2.txt \
+    python -m atlas_nano.pipeline.training --model Qwen/Qwen3-4B \
+        --train-gauntlet atlas_nano/data/gauntlet_v3_corrected.txt \
         --output-dir ./gates_qwen3
     
     # Just generate expanded training data
-    python vecp_training_pipeline_v3.py --generate-data-only --output expanded_training.txt
+    python -m atlas_nano.pipeline.training --generate-data-only
 
-Patent Pending: USPTO 63/931,565
 Copyright (c) 2025 David Cappelli / VecP Labs
 """
 

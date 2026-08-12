@@ -36,14 +36,12 @@ Usage:
         --gauntlet gauntlet_v3_corrected.txt \
         --layers 14 18 22 27
 
-Patent Pending: USPTO 63/931,565
 Copyright (c) 2025-2026 David Cappelli / VecP Labs
 """
 
 import argparse
 import json
 import os
-import sys
 import time
 import numpy as np
 import torch
@@ -51,10 +49,6 @@ import torch.nn.functional as F
 from pathlib import Path
 from typing import Dict, List, Tuple, Optional
 from datetime import datetime
-
-# Add parent directory to path for imports
-sys.path.insert(0, str(Path(__file__).parent.parent))
-
 
 # =============================================================================
 # DATA LOADING

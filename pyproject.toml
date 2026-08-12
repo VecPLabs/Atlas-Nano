@@ -4,17 +4,17 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "atlas-nano"
-version = "1.0.0"
-description = "LLM Safety Classification Pipeline using Vectorial Projection (VecP)"
+version = "0.1.0"
+description = "Research-preview, model-coupled LLM safety sensing toolkit using vectorial projection"
 readme = "README.md"
-license = {text = "Proprietary - Patent Pending USPTO 63/931,565"}
+license = {file = "LICENSE"}
 requires-python = ">=3.10"
 authors = [
     {name = "David Cappelli", email = "david@vecplabs.com"},
 ]
 keywords = ["llm", "safety", "classification", "ai-safety", "guardrails"]
 classifiers = [
-    "Development Status :: 4 - Beta",
+    "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
     "Intended Audience :: Science/Research",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
@@ -22,35 +22,35 @@ classifiers = [
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "License :: OSI Approved :: Apache Software License",
 ]
 
 dependencies = [
-    "torch>=2.1.0",
-    "transformers>=4.51.0",
-    "numpy>=1.24.0",
-    "pyyaml>=6.0",
-    "cma>=3.3.0",
+    "torch>=2.1.0,<3",
+    "transformers>=4.51.0,<5",
+    "numpy>=1.24.0,<3",
+    "pyyaml>=6.0,<7",
+    "cma>=3.3.0,<5",
 ]
 
 [project.optional-dependencies]
-gguf = ["gguf>=0.6.0"]
-dev = ["pytest>=7.0", "ruff>=0.4.0"]
+gguf = ["gguf>=0.6.0,<1"]
+dev = ["build>=1.2,<2", "pytest>=7.0,<9", "ruff>=0.4,<1"]
 
 [project.scripts]
 atlas-nano = "atlas_nano.cli:main"
 
 [project.urls]
 Homepage = "https://github.com/VecPLabs/Atlas-Nano"
+Documentation = "https://github.com/VecPLabs/Atlas-Nano#readme"
+Issues = "https://github.com/VecPLabs/Atlas-Nano/issues"
+Changelog = "https://github.com/VecPLabs/Atlas-Nano/blob/main/CHANGELOG.md"
 
 [tool.setuptools.packages.find]
 include = ["atlas_nano*", "sign_check_atlas*"]
 
 [tool.setuptools]
-py-modules = [
-    "vecp_training_pipeline_v3_qwen3",
-    "vecp_cache_scores_qwen3",
-    "vecp_calibrate_cmaes_qwen3",
-    "vecp_calibration_loader_qwen3",
-    "vecp_full_stack_v2_qwen3",
-    "vecp_benchmark_runner_v2_qwen3",
-]
+license-files = ["LICENSE", "NOTICE"]
+
+[tool.setuptools.package-data]
+atlas_nano = ["data/*.txt", "data/*.md"]
